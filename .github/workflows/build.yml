@@ -1,0 +1,48 @@
+name: Build mod from zip
+
+on:
+  push:
+    paths:
+      - '*.zip'
+      - '.github/workflows/build.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unzip project
+        run: |
+          ZIP=$(ls *.zip | head -n 1)
+          echo "Using $ZIP"
+          mkdir _src
+          unzip -q "$ZIP" -d _src
+          GRADLE_FILE=$(find _src -name build.gradle | head -n 1)
+          echo "PROJECT_DIR=$(dirname "$GRADLE_FILE")" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.8
+
+      - name: Build
+        run: |
+          cd "$PROJECT_DIR"
+          gradle build --no-daemon
+
+      - name: Collect jar
+        run: |
+          mkdir out
+          find "$PROJECT_DIR/build/libs" -name '*.jar' ! -name '*-sources.jar' ! -name '*-dev.jar' -exec cp {} out/ \;
+          ls -la out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: custom-music-mod
+          path: out/*.jar
